@@ -1,13 +1,14 @@
 ---
-title: "about"
-author: "Anna Leach"
-date: "2026-09-22"
+title: "Arizona Anomalies"
+author: "Sanjana Sudulaganti,TanuSree Edibilli,Stephanie Wu"
+date: "2026-11-07"
 output: html_document
 ---
 
 This project was developed by Gizmo For INFO 526 - Data Analysis and Visualization at the University of Arizona, taught by Dr. Anna R. Leach. The team is comprised of the following team members.
 
 Team member 1: One sentence description of Team member 1 (e.g., year, major, etc.).
+My name is Sanjana, I am a first-year M.S. Data Science student with a Computer Science background, passionate about data visualization,analysis and generative AI.
 
 Team member 2: One sentence description of Team member 2 (e.g., year, major, etc.).
 
