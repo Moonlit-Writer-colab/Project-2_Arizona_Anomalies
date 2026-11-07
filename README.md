@@ -1,6 +1,6 @@
-# project-01
+# project-02
 
-Project 1 repo for INFO 526 - Fall 2026.
+Project 2 repo for INFO 526 - Fall 2026.
 
 #### Disclosure:
 Derived from the original course by Mine Çetinkaya-Rundel @ Duke University
