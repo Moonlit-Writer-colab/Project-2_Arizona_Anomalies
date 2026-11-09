@@ -11,6 +11,7 @@ Team member 1: One sentence description of Team member 1 (e.g., year, major, etc
 My name is Sanjana, I am a first-year M.S. Data Science student with a Computer Science background, passionate about data visualization,analysis and generative AI.
 
 Team member 2: One sentence description of Team member 2 (e.g., year, major, etc.).
+My name is Stephanie Wu. I am in my first semester of M.S. Information Science, with a subplan in Machine Learning. I had a Pharmaceutical Sciences background, and am passionate about algorithm design and health informatics.
 
 Team member 3: One sentence description of Team member 3 (e.g., year, major, etc.).
 
