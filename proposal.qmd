@@ -1,6 +1,8 @@
 ---
-title: "Proposal title"
-subtitle: "Proposal"
+title: "Arizona Anomalies"
+subtitle: "INFO 526 Project 2 Proposal"
+author: "Group 5 - TanuSree Edibilli, Sanjana and Stephanie Wu"
+date: "2026-11-12"
 format: html
 editor: visual
 ---
@@ -11,21 +13,161 @@ editor: visual
 library(tidyverse)
 ```
 
+```{r}
+#| label: read-data
+#| message: false
+arizona_weather <- read_csv("data/arizona_weather.csv")
+```
+
+## Project goal
+
+We will build a reproducible season calendar showing how the timing and length of Tucson's hot and freeze seasons changed from `r min(arizona_weather$year)` through `r max(arizona_weather$year)`. We will use daily NOAA temperature records.
+
+## Goals and motivation
+
+Tucson home and community gardeners plan around the last spring freeze, the arrival of extreme heat, and the return of freezing temperatures in fall. The University of Arizona Cooperative Extension's March gardening guide advises readers to pay attention to their local last frost and choose planting dates that give vegetables time to mature before June heat. Annual averages miss the dates that shape these decisions.
+
+We will focus on Tucson and use Phoenix as a heat reference and Flagstaff as a freeze reference. The spring and fall windows could get longer, get shorter, or move earlier or later. A calendar lets readers see which boundary moved and how much event dates vary from year to year.
+
 ## Dataset
 
 ```{r}
 #| label: load-dataset
 #| message: false
+arizona_weather <- read_csv("data/arizona_weather.csv")
 ```
 
-A brief description of your dataset including its provenance, dimensions, etc. as well as the reason why you chose this dataset.
+The original data is available at https://www.ncei.noaa.gov/products/land-based-station/global-historical-climatology-network-daily
 
-Make sure to load the data and use inline code for some of this information.
+**Where the data comes from :** We use NOAA's Global Historical Climatology Network Daily (GHCN-Daily), which records daily weather from stations around the world. We downloaded the data from NOAA's National Centers for Environmental Information (NCEI) data service on November 6, 2026, in degrees Fahrenheit, and cleaned it with an R script before using it.
 
-## Questions
+**Why we chose it :** It has documented daily high and low temperatures over more than 40 years, which is long enough to see changes in when heat and freezing temperatures start and end. It also includes three airport stations at very different elevations: Tucson, Phoenix (low desert), and Flagstaff (high elevation).
 
-The two questions you want to answer.
+**Size of the data :** The dataset has `r format(nrow(arizona_weather), big.mark = ",")` rows and `r ncol(arizona_weather)` columns. Each row is one day at one station. It covers `r n_distinct(arizona_weather$station_name)` stations from `r min(arizona_weather$year)` through `r max(arizona_weather$year)`, and every station has a row for every day. We left out Yuma because its record ends in June 1996, which is too short to study change over time.
+
+**Missing values :** Days with no reading are kept as `NA`. There are `r sum(is.na(arizona_weather$tmax_f))` missing daily highs and `r sum(is.na(arizona_weather$tmin_f))` missing daily lows, and most of them are at Flagstaff. We will flag these days and handle them carefully when we calculate event dates.
+
+| Variable | Type | Description |
+|:-----------------------|:-----------------------|:-----------------------|
+| station_id | character | NOAA station ID |
+| station_name | character | Name of the weather station |
+| date | date | Date of the observation |
+| tmax_f | number | Highest temperature of the day (°F) |
+| tmin_f | number | Lowest temperature of the day (°F) |
+| year | number | Calendar year of the date |
+| month | number | Month of the date (1 to 12) |
+| season | character | "summer" (June to August), "winter" (December to February), or "other" |
+| season_year | number | Year the season is counted in (December is counted with the January and February after it) |
+
+| Station                      | NOAA ID     |   Rows | Missing highs | Missing lows |
+|:--------------|:--------------|--------------:|--------------:|--------------:|
+| Tucson International Airport | USW00023160 | 15,706 |             1 |            2 |
+| Phoenix Airport              | USW00023183 | 15,706 |             0 |            0 |
+| Flagstaff Airport            | USW00003103 | 15,706 |            48 |           49 |
+
+## Research question
+
+How did the start, end, and length of Tucson's hot and freeze seasons change from `r min(arizona_weather$year)` through `r max(arizona_weather$year)`, and what did those changes mean for the spring and fall windows between heat and freezing temperatures?
 
 ## Analysis plan
 
--   A plan for answering each of the questions including the variables involved, variables to be created (if any), external data to be merged in (if any).
+**A plan for answering the question :** We will find four event dates for Tucson in each year: the first and last day with a high of 100°F or more, the last January-June freeze, and the first July-December freeze. From these dates we will calculate the length of the hot season, the length of the freeze season, and the spring and fall windows between heat and freezing temperatures. We will use Phoenix as a heat reference and Flagstaff as a freeze reference, and compare the early years (1982-1991) with the recent years (2015-2024).
+
+**Variables involved :** `station_name`, `date`, `year`, `month`, `tmax_f`, and `tmin_f`.
+
+**Variables to be created :** the first and last 100°F day, the last spring freeze and first fall freeze, the length of each season, and the spring and fall windows. For plotting we will also create a month-day position for each date.
+
+**External data to be merged in:** station latitude and longitude from NOAA's GHCN-Daily station metadata, and an Arizona state boundary from the US Census Bureau, both for the station map.
+
+| Measure | Rule | What it tells us |
+|:-----------------------|:-----------------------|:-----------------------|
+| Hot-season span | First through last day in a calendar year with a high of at least 100°F. | How early heat arrives, how late it lasts, and how long the span is. |
+| Freeze-season span | First July-December date with a low of 32°F or below through the last January-June freeze in the following year. | How the freeze season starts and ends across the New Year. |
+| Spring window | Days strictly between the last January-June freeze and the first 100°F day in the same year. | Time between the end of spring freezes and the start of extreme heat. |
+| Fall window | Days strictly between the last 100°F day and the first July-December freeze in the same year. | Time between the end of extreme heat and the return of freezing temperatures. |
+
+Season spans count both boundary dates. They may include days between those dates that fall outside the temperature threshold. Spring and fall windows count the days strictly between their two boundaries. We will calculate durations from actual dates and use a common month-day axis for plotting so dates align across leap years.
+
+For the freeze-season span, we will compare complete pairs from 1982-83 through 2023-24. When a boundary has no observed event or is uncertain because of missing readings, we will flag it. If either boundary is unavailable, the duration stays missing. If the boundaries overlap or fall out of order, we will report that there was no positive window. We will report the number of usable years for each comparison. A table in the write-up will compare the median lengths of Tucson's hot season, freeze season, and spring and fall windows across the same periods. It will report the number of usable years for each estimate and group freeze seasons by their ending year.
+
+## Visualization plan
+
+We will make two main figures and one summary table. Together they show when the key events happen in Tucson, how those dates moved over time, and how Tucson compares with Phoenix and Flagstaff.
+
+**Main chart: Tucson season calendar** **:**
+
+Each row is one year, from 1982 at the top to 2024 at the bottom. The horizontal axis runs from January through December, with each tile representing one date. Orange marks highs of 100°F or more, blue marks lows of 32°F or less, and light gray marks dates with complete readings that meet neither threshold. A separate missing-data mark identifies incomplete dates. The calendar will use a consistent position for February 29 and leave that slot empty in non-leap years.
+
+Four thin, directly labeled traces will summarize the last spring freeze, first hot day, last hot day, and first fall freeze. Readers can compare older and newer rows to see when heat and freezes moved and how the spaces between their boundaries changed.
+
+**Supporting chart: Annotated Arizona station map**
+
+Four small Arizona maps will show shifts in the last spring freeze, first 100°F day, last 100°F day, and first fall freeze. Each station label will report the median event date in 2015-2024 minus the median date in 1982-1991, in calendar days. A negative value means the event occurred earlier in the recent period, and a positive value means it occurred later. Tucson appears in every panel, with Phoenix as the heat reference and Flagstaff as the freeze reference. We will report the number of usable years for each station and period.
+
+**Summary table :**
+
+A table in the write-up will compare the median lengths of Tucson's hot season, freeze season, and spring and fall windows in the early and recent periods, with the number of usable years for each estimate.
+
+**Design choices**
+
+- Every figure will have a clear title, axis labels with units, and a legend that explains each color.
+
+- We will use direct labels where possible, so readers do not have to look back and forth between the plot and a legend.
+
+- Orange and blue are easy to tell apart, including for readers with color-vision differences, and they match what readers expect from heat and cold.
+
+- Station dots on the maps will be sized by area, not by diameter, so that the size matches the value, as taught in the geospatial lecture.
+
+- All figures will be created from R scripts in the `scripts/` folder, so anyone can run the project and get the same results.
+
+**What we will teach ourselves :**
+
+For our independent-learning component, we will learn two things that were not covered in class. First, we will use the `tigris` package to download the Arizona state boundary from the US Census Bureau straight into R, so the map data is also reproducible. Second, we will use the `ggrepel` package to place the station labels so they do not overlap. We will check with our instructor that this qualifies as new material.
+
+## Weekly plan
+
+This is a living document and should be updated at least once a week.
+
+| Task Name | Status | Assignee | Due | Priority | Summary |
+|:-----------|:-----------|:-----------|:-----------|:-----------|:-----------|
+| Wk 12 - Prepare dataset | Done | Tanusree | Nov 6 | High | Select the NOAA stations and document the variables. |
+| Wk 12 - Get dataset approved | In progress | Sanjana | Nov 13 | High | Email the professor about the dataset and copy the team. |
+| Wk 12 - Set up proposal and repo | In progress | All | Nov 15 | High | Write the proposal, update the About page, and add folder READMEs. |
+| Wk 13 - Check the cleaning script | In progress | Tanusree | Nov 14 | High | Rebuild the proposal's data from the local raw CSV. |
+| Wk 13 - Review another proposal | Not started | Stephanie | Nov 16 | Moderate | Post the review as an issue. |
+| Wk 13 - Address feedback | Not started | All | Nov 17 | High | Revise the proposal and close the review issue with a commit. |
+| Wk 13 - Check thresholds and coverage | Not started | Tanusree | Nov 18 | High | Reproduce event counts in R and flag missing readings. |
+| Wk 13 - Build the event-date table | Not started | Sanjana | Nov 20 | High | Compute event dates and window lengths by station and year. |
+| Wk 14 - Build the season calendar | Not started | Tanusree, Sanjana | Nov 29 | High | Plot Tucson's daily tiles and label the four event dates. |
+| Wk 14 - Build the Arizona station map | Not started | Stephanie | Nov 29 | Moderate | Map the four event-date shifts and label them in days. |
+| Wk 15 - Draft the write-up | Not started | All | Dec 3 | High | Interpret the charts and cite sources. |
+| Wk 15 - Prepare and rehearse | Not started | All | Dec 6 | High | Check timing and give each member a speaking role. |
+| Wk 16 - Present in class | Not started | All | Dec 7 or 9 | High | Present the project as a team on our assigned day. |
+| Wk 16 - Submit the write-up | Not started | All | Dec 13 | High | Close review issues and submit by 11:59 p.m. |
+
+Every team member will commit her own work to the GitHub repository for the proposal, the presentation, and the write-up.
+
+## Repository organization
+
+Our repository is organized into the folders below. Each folder has a `README.md` that explains what belongs there.
+
+| Folder or file | What goes there |
+|:-----------------------------------|:-----------------------------------|
+| `README.md` (main) | Project overview and instructions for rendering the project |
+| `proposal.qmd` | This proposal |
+| `about.Rmd` | Description of the team members |
+| `data/` | The cleaned `arizona_weather.csv` and the codebook describing each variable |
+| `data/raw/` | The original NOAA CSV files, kept unchanged |
+| `scripts/` | R scripts for preparing the data, calculating event dates, and creating the charts |
+| `presentation/` | Quarto slides for the final presentation |
+| `writeup/` | The final write-up |
+
+We will remove any files from the template that we do not need.
+
+## Sources
+
+NOAA National Centers for Environmental Information. Global Historical Climatology Network Daily (GHCN-Daily). <https://www.ncei.noaa.gov/products/land-based-station/global-historical-climatology-network-daily>
+
+Menne, M. J., Durre, I., Vose, R. S., Gleason, B. E., and Houston, T. G. (2012). An overview of the Global Historical Climatology Network-Daily Database. Journal of Atmospheric and Oceanic Technology, 29, 897-910.
+
+University of Arizona Cooperative Extension. March Monthly Gardening Guide for Pima County. <https://extension.arizona.edu/publication/march-monthly-gardening-guide-pima-county>
