@@ -1,11 +1,11 @@
 ---
-title: "Project title"
-subtitle: "INFO 526 - Project 1"
-author: "Team name"
+title: "When Do Tucson's Hot and Freeze Seasons Begin and End?"
+subtitle: "INFO 526 - Project 2"
+author: "Group 5 - Arizona Anomalies"
 format: html
 editor: visual
 ---
 
 ## Abstract
 
-Add project abstract here.
+Tucson gardeners and residents plan around when extreme heat arrives and when freezing temperatures end and return, but annual averages hide these dates. This project uses daily high and low temperatures from NOAA's Global Historical Climatology Network Daily (GHCN-Daily) for Tucson International Airport from 1982 through 2024, with Phoenix as a heat reference and Flagstaff as a freeze reference. For each year, we find the first and last day at or above 100°F and the last spring and first fall freeze (32°F or below). We then calculate the length of the hot and freeze seasons and of the spring and fall windows between them, and compare the early years (1982-1991) with the recent years (2015-2024). We present the results in a season calendar of Tucson's daily temperatures and an annotated map showing how each event date shifted at the three stations.
