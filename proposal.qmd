@@ -39,13 +39,21 @@ arizona_weather <- read_csv("data/arizona_weather.csv")
 
 The original data is available at https://www.ncei.noaa.gov/products/land-based-station/global-historical-climatology-network-daily
 
-**Where the data comes from :** We use NOAA's Global Historical Climatology Network Daily (GHCN-Daily), which records daily weather from stations around the world. We downloaded the data from NOAA's National Centers for Environmental Information (NCEI) data service on November 6, 2026, in degrees Fahrenheit, and cleaned it with an R script before using it.
+**Where the data comes from :**
 
-**Why we chose it :** It has documented daily high and low temperatures over more than 40 years, which is long enough to see changes in when heat and freezing temperatures start and end. It also includes three airport stations at very different elevations: Tucson, Phoenix (low desert), and Flagstaff (high elevation).
+We use NOAA's Global Historical Climatology Network Daily (GHCN-Daily), which records daily weather from stations around the world. We downloaded the data from NOAA's National Centers for Environmental Information (NCEI) data service on November 6, 2026, in degrees Fahrenheit, and cleaned it with an R script before using it.
 
-**Size of the data :** The dataset has `r format(nrow(arizona_weather), big.mark = ",")` rows and `r ncol(arizona_weather)` columns. Each row is one day at one station. It covers `r n_distinct(arizona_weather$station_name)` stations from `r min(arizona_weather$year)` through `r max(arizona_weather$year)`, and every station has a row for every day. We left out Yuma because its record ends in June 1996, which is too short to study change over time.
+**Why we chose it :**
 
-**Missing values :** Days with no reading are kept as `NA`. There are `r sum(is.na(arizona_weather$tmax_f))` missing daily highs and `r sum(is.na(arizona_weather$tmin_f))` missing daily lows, and most of them are at Flagstaff. We will flag these days and handle them carefully when we calculate event dates.
+It has documented daily high and low temperatures over more than 40 years, which is long enough to see changes in when heat and freezing temperatures start and end. It also includes three airport stations at very different elevations: Tucson, Phoenix (low desert), and Flagstaff (high elevation).
+
+**Size of the data :**
+
+The dataset has `r format(nrow(arizona_weather), big.mark = ",")` rows and `r ncol(arizona_weather)` columns. Each row is one day at one station. It covers `r n_distinct(arizona_weather$station_name)` stations from `r min(arizona_weather$year)` through `r max(arizona_weather$year)`, and every station has a row for every day. We left out Yuma because its record ends in June 1996, which is too short to study change over time.
+
+**Missing values :**
+
+Days with no reading are kept as `NA`. There are `r sum(is.na(arizona_weather$tmax_f))` missing daily highs and `r sum(is.na(arizona_weather$tmin_f))` missing daily lows, and most of them are at Flagstaff. We will flag these days and handle them carefully when we calculate event dates.
 
 | Variable | Type | Description |
 |:-----------------------|:-----------------------|:-----------------------|
@@ -65,19 +73,29 @@ The original data is available at https://www.ncei.noaa.gov/products/land-based-
 | Phoenix Airport              | USW00023183 | 15,706 |             0 |            0 |
 | Flagstaff Airport            | USW00003103 | 15,706 |            48 |           49 |
 
+**Threshold check**
+
+Tucson recorded 31–112 days at or above 100°F and 3–27 days with a low at or below 32°F per calendar year. Both heat dates are available in all 43 years. An observed January–June freeze is available in 42 years and an observed July–December freeze in 41 years. Phoenix recorded at least 88 qualifying hot days each year, while Flagstaff recorded 177–231 qualifying freeze days each year. These counts establish that the thresholds are usable for the planned comparisons.
+
 ## Research question
 
 How did the start, end, and length of Tucson's hot and freeze seasons change from `r min(arizona_weather$year)` through `r max(arizona_weather$year)`, and what did those changes mean for the spring and fall windows between heat and freezing temperatures?
 
 ## Analysis plan
 
-**A plan for answering the question :** We will find four event dates for Tucson in each year: the first and last day with a high of 100°F or more, the last January-June freeze, and the first July-December freeze. From these dates we will calculate the length of the hot season, the length of the freeze season, and the spring and fall windows between heat and freezing temperatures. We will use Phoenix as a heat reference and Flagstaff as a freeze reference, and compare the early years (1982-1991) with the recent years (2015-2024).
+**A plan for answering the question :**
+
+We will find four event dates for Tucson in each year: the first and last day with a high of 100°F or more, the last January-June freeze, and the first July-December freeze. From these dates we will calculate the length of the hot season, the length of the freeze season, and the spring and fall windows between heat and freezing temperatures. We will use Phoenix as a heat reference and Flagstaff as a freeze reference, and compare the early years (1982-1991) with the recent years (2015-2024).
 
 **Variables involved :** `station_name`, `date`, `year`, `month`, `tmax_f`, and `tmin_f`.
 
-**Variables to be created :** the first and last 100°F day, the last spring freeze and first fall freeze, the length of each season, and the spring and fall windows. For plotting we will also create a month-day position for each date.
+**Variables to be created :**
 
-**External data to be merged in:** station latitude and longitude from NOAA's GHCN-Daily station metadata, and an Arizona state boundary from the US Census Bureau, both for the station map.
+The first and last 100°F day, the last spring freeze and first fall freeze, the length of each season, and the spring and fall windows. For plotting we will also create a month-day position for each date.
+
+**External data to be merged in:**
+
+Station latitude and longitude from NOAA's GHCN-Daily station metadata, and an Arizona state boundary from the US Census Bureau, both for the station map.
 
 | Measure | Rule | What it tells us |
 |:-----------------------|:-----------------------|:-----------------------|
