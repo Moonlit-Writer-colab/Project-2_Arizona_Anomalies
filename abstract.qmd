@@ -1,7 +1,7 @@
 ---
 title: "When Do Tucson's Hot and Freeze Seasons Begin and End?"
 subtitle: "INFO 526 - Project 2"
-author: "Group 5 - Arizona Anomalies"
+author: "Group 6 - Arizona Anomalies"
 format: html
 editor: visual
 ---

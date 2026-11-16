@@ -1,7 +1,7 @@
 ---
 title: "Arizona Anomalies"
 subtitle: "INFO 526 Project 2 Proposal"
-author: "Group 5 - TanuSree Edibilli, Sanjana and Stephanie Wu"
+author: "Group 6 - TanuSree Edibilli, Sanjana and Stephanie Wu"
 date: "2026-11-12"
 format: html
 editor: visual
