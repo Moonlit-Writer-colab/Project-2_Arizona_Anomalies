@@ -7,3 +7,5 @@
 
 proposal.html
 proposal_files/
+scripts/*.html
+scripts/*_files/

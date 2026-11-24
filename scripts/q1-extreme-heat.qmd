@@ -1,0 +1,417 @@
+---
+title: "Question 1: How did extreme heat change?"
+subtitle: "Hot days in Tucson, Phoenix, and Flagstaff, 1982–2024"
+format:
+  html:
+    embed-resources: true
+    toc: true
+execute:
+  warning: false
+  message: false
+---
+
+This document answers the first half of our research question: how the number,
+timing, and length of hot days changed in each city. It uses two definitions,
+as set out in the proposal:
+
+- **Fixed:** a high of **100°F or more** (NOAA and NWS extreme-heat line).
+- **City-relative:** a high at or above the city's **90th-percentile June–August
+  high for 1991–2020** (the TX90p index), so Flagstaff, which never reaches
+  100°F, can be compared with the other two.
+
+We start with Tucson and then repeat the same steps for Phoenix and Flagstaff.
+The freeze analysis (question 2) will reuse the helper functions in
+`season_helpers.R` with the July–June `cold_season` year.
+
+Every chart is also saved as a PNG in `images/q1/`.
+
+```{r}
+#| label: setup
+source("season_helpers.R")
+
+img_dir <- "../images/q1"
+dir.create(img_dir, recursive = TRUE, showWarnings = FALSE)
+save_chart <- function(plot, file, width = 10, height = 6) {
+  ggsave(file.path(img_dir, file), plot, width = width, height = height,
+         dpi = 300, bg = "white")
+  plot
+}
+
+weather    <- load_weather()
+thresholds <- relative_heat_thresholds(weather)
+hot        <- flag_hot_days(weather, fixed_f = 100, thresholds = thresholds)
+```
+
+## Thresholds
+
+```{r}
+#| label: thresholds
+thresholds |>
+  left_join(
+    hot |>
+      filter(year %in% base_years) |>
+      group_by(city) |>
+      summarise(days_100_per_year = sum(hot_fixed, na.rm = TRUE) / length(base_years)),
+    by = "city"
+  ) |>
+  knitr::kable(
+    col.names = c("City", "Relative hot day (°F)", "100°F days per year, 1991–2020"),
+    digits = 1
+  )
+```
+
+These match the proposal: 107°F for Tucson, 112°F for Phoenix, and 87°F for
+Flagstaff.
+
+## Event dates by year
+
+For each city and calendar year we find the first and last hot day, the span
+between them (both ends counted), and the number of hot days, under both
+definitions.
+
+```{r}
+#| label: event-dates
+hot_events <- bind_rows(
+  event_dates(hot, hot_fixed)    |> mutate(measure = "100°F or hotter"),
+  event_dates(hot, hot_relative) |> mutate(measure = "City's hottest 10%")
+) |>
+  mutate(measure = factor(measure, levels = c("100°F or hotter", "City's hottest 10%"))) |>
+  add_period_group()
+
+# Missing highs per city and year, so we can flag years with gaps
+hot_events |>
+  filter(measure == "100°F or hotter", n_missing > 0) |>
+  select(city, year = period, n_missing) |>
+  knitr::kable(col.names = c("City", "Year", "Missing daily highs"))
+```
+
+Tucson and Phoenix are essentially complete. Flagstaff is missing 29 highs in 1994 (mostly in June, visible as white tiles in Chart 4), so its 1994 first hot day and count may be slightly off; we keep the year but note it.
+
+# Tucson first
+
+### Chart 1: Tucson's heat calendar
+
+```{r}
+#| label: fig-tucson-calendar
+#| fig-width: 8
+#| fig-height: 7
+calendar_traces <- hot_events |>
+  filter(measure == "100°F or hotter")
+
+tucson_calendar <- plot_heat_calendar(
+  hot, calendar_traces, cities = "Tucson",
+  title = "Tucson's 100°F season now starts earlier and ends later",
+  subtitle = "Each row is a year, each tile a day, shaded by the daily high. Lines trace the first and last 100°F day."
+) +
+  theme(strip.text = element_blank())
+
+save_chart(tucson_calendar, "01-tucson-heat-calendar.png", width = 8, height = 7)
+```
+
+### Chart 2: Tucson's hot days per year
+
+```{r}
+#| label: fig-tucson-counts
+#| fig-width: 9
+#| fig-height: 5
+plot_hot_counts <- function(events, cities) {
+  df <- events |> filter(city %in% cities)
+
+  # A city with no hot days under a definition (Flagstaff at 100°F) gets a
+  # note instead of a zero median and a flat trend.
+  has_days <- df |>
+    group_by(city, measure) |>
+    summarise(any_days = any(n_days > 0), .groups = "drop")
+  empty <- filter(has_days, !any_days) |>
+    mutate(label = "Never reaches 100°F")
+
+  medians <- df |>
+    semi_join(filter(has_days, any_days), by = c("city", "measure")) |>
+    filter(!is.na(group)) |>
+    group_by(city, measure, group) |>
+    summarise(median = median(n_days), x0 = min(period), x1 = max(period),
+              .groups = "drop")
+
+  trends <- df |>
+    group_by(measure) |>
+    group_modify(~ trend_per_decade(.x, n_days)) |>
+    ungroup() |>
+    semi_join(filter(has_days, any_days), by = c("city", "measure")) |>
+    mutate(label = sprintf("%+.1f days per decade", slope_per_decade))
+
+  ggplot(df, aes(period, n_days)) +
+    geom_col(aes(fill = city), width = 0.75, show.legend = FALSE) +
+    geom_segment(data = medians,
+                 aes(x = x0 - 0.4, xend = x1 + 0.4, y = median, yend = median),
+                 color = text_primary, linewidth = 0.8) +
+    geom_text(data = medians,
+              aes(x = (x0 + x1) / 2, y = median,
+                  label = paste0("median ", median)),
+              vjust = -0.6, size = 3, color = text_primary) +
+    geom_text(data = trends, aes(x = 1982, y = Inf, label = label),
+              hjust = 0, vjust = 1.4, size = 3.2, color = text_secondary) +
+    geom_text(data = empty, aes(x = 2003, y = 0, label = label),
+              vjust = -2, size = 3.5, color = text_secondary) +
+    facet_grid(measure ~ city, scales = "free_y") +
+    scale_fill_manual(values = city_colors) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.25))) +
+    labs(x = NULL, y = "Hot days per year", caption = data_caption) +
+    theme_anomalies() +
+    theme(panel.grid.major.x = element_blank())
+}
+
+tucson_counts <- plot_hot_counts(hot_events, "Tucson") +
+  labs(title = "Tucson has more hot days than in the 1980s",
+       subtitle = "Days per year at or above each threshold. Black lines mark the 1982–1991 and 2015–2024 medians.")
+
+save_chart(tucson_counts, "02-tucson-hot-days-per-year.png", width = 9, height = 5.5)
+```
+
+### Chart 3: Tucson's first and last hot day
+
+```{r}
+#| label: fig-tucson-timing
+#| fig-width: 9
+#| fig-height: 5
+plot_hot_timing <- function(events, cities) {
+  df <- events |>
+    filter(city %in% cities, n_days > 0) |>
+    select(city, period, measure, first_plot, last_plot) |>
+    pivot_longer(c(first_plot, last_plot), names_to = "event",
+                 values_to = "plot_date") |>
+    mutate(event = if_else(event == "first_plot", "First hot day", "Last hot day"))
+
+  ggplot(df, aes(period, plot_date)) +
+    geom_point(aes(shape = event, color = city), size = 1.8, alpha = 0.85) +
+    geom_smooth(aes(group = event), method = "lm", se = FALSE,
+                color = text_primary, linewidth = 0.6, formula = y ~ x) +
+    facet_grid(measure ~ city) +
+    scale_shape_manual(values = c("First hot day" = 16, "Last hot day" = 1),
+                       name = NULL) +
+    scale_color_manual(values = city_colors, guide = "none") +
+    scale_y_date(date_labels = "%b %d") +
+    labs(x = NULL, y = NULL, caption = data_caption) +
+    theme_anomalies()
+}
+
+tucson_timing <- plot_hot_timing(hot_events, "Tucson") +
+  labs(title = "In Tucson, the first hot day comes earlier and the last one later",
+       subtitle = "Dates of the first and last hot day each year, with a straight-line trend.")
+
+save_chart(tucson_timing, "03-tucson-first-last-hot-day.png", width = 9, height = 6)
+```
+
+# All three cities
+
+### Chart 4: Heat calendars side by side
+
+Flagstaff never reaches 100°F, so its lines trace its own hottest 10% of summer
+days instead.
+
+```{r}
+#| label: fig-three-calendars
+#| fig-width: 13
+#| fig-height: 7
+calendar_traces_all <- hot_events |>
+  filter((city != "Flagstaff" & measure == "100°F or hotter") |
+         (city == "Flagstaff" & measure == "City's hottest 10%"))
+
+three_calendars <- plot_heat_calendar(
+  hot, calendar_traces_all,
+  title = "Hot seasons stretched in all three cities",
+  subtitle = "Lines trace the first and last 100°F day (Flagstaff: first and last day in its hottest 10%)."
+)
+
+save_chart(three_calendars, "04-three-city-heat-calendars.png", width = 13, height = 7)
+```
+
+### Chart 5: Hot days per year in all three cities
+
+```{r}
+#| label: fig-three-counts
+#| fig-width: 12
+#| fig-height: 6
+three_counts <- plot_hot_counts(hot_events, city_levels) +
+  labs(title = "All three cities have more hot days by their own standard",
+       subtitle = "Top row: 100°F days (Flagstaff has none). Bottom row: days in each city's hottest 10% of 1991–2020 summer highs.")
+
+save_chart(three_counts, "05-three-city-hot-days-per-year.png", width = 12, height = 6)
+```
+
+### Chart 6: Early and recent hot-season length
+
+```{r}
+#| label: fig-season-length
+#| fig-width: 10
+#| fig-height: 4.5
+length_summary <- hot_events |>
+  filter(!is.na(group)) |>
+  group_by(city, measure, group) |>
+  summarise(
+    usable_years = sum(n_days > 0),
+    median_span  = median(span_days, na.rm = TRUE),
+    median_days  = median(n_days),
+    .groups = "drop"
+  )
+
+season_length <- length_summary |>
+  filter(usable_years > 0) |>
+  ggplot(aes(median_span, fct_rev(city))) +
+  geom_line(aes(group = city), color = "#c9c8c3", linewidth = 1.2) +
+  geom_point(aes(color = if_else(group == "1982–1991", "early", as.character(city)),
+                 shape = group), size = 3.8) +
+  geom_text(aes(label = median_span,
+                hjust = if_else(group == "1982–1991", 1.4, -0.4)),
+            size = 3.2, color = text_primary) +
+  facet_wrap(~ measure, nrow = 1) +
+  scale_color_manual(values = c(city_colors, early = "#9e9d98"), guide = "none") +
+  scale_shape_manual(values = c("1982–1991" = 1, "2015–2024" = 16), name = NULL) +
+  scale_x_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.08))) +
+  labs(
+    x = "Median hot-season length (days from first to last hot day)", y = NULL,
+    title = "Hot seasons are longer now than in the 1980s",
+    subtitle = "Median span from first to last hot day. Open gray circle: 1982–1991. Filled circle: 2015–2024.",
+    caption = paste(data_caption, "Flagstaff has no 100°F season.")
+  ) +
+  theme_anomalies() +
+  theme(legend.position = "none")
+
+save_chart(season_length, "06-hot-season-length-early-vs-recent.png", width = 10, height = 4.5)
+```
+
+### Chart 7: Did Phoenix's hot season grow faster?
+
+The peer reviewers asked whether Phoenix's hot season grew disproportionately,
+possibly because of the urban heat island. To compare cities on equal terms we
+use each city's own hottest 10% and show the change from its 1982–1991 median.
+By this measure Tucson (+14 days) and Phoenix (+12) grew by similar amounts
+and Flagstaff (+5.5) less, so the station data alone do not show Phoenix
+pulling ahead. Phoenix does stand out in Chart 8: its 110°F+ days rose sharply.
+
+```{r}
+#| label: fig-city-change
+#| fig-width: 10
+#| fig-height: 5.5
+city_change <- hot_events |>
+  filter(measure == "City's hottest 10%") |>
+  group_by(city) |>
+  mutate(
+    baseline = median(span_days[period %in% early_years], na.rm = TRUE),
+    change   = span_days - baseline,
+    # 9-year centred running median smooths out single odd years
+    smooth   = slider_median(change, 9)
+  ) |>
+  ungroup()
+
+# Label each line with the change in the median span, 1982–1991 to 2015–2024,
+# the same numbers as Chart 6 and the summary table.
+period_change <- city_change |>
+  group_by(city) |>
+  summarise(shift = median(change[period %in% recent_years], na.rm = TRUE))
+
+end_labels <- city_change |>
+  filter(!is.na(smooth)) |>
+  group_by(city) |>
+  slice_max(period, n = 1) |>
+  ungroup() |>
+  left_join(period_change, by = "city") |>
+  arrange(desc(smooth)) |>
+  mutate(label_y = smooth + c(4, 0, -4)[row_number()])
+
+city_change_plot <- ggplot(city_change, aes(period, smooth, color = city)) +
+  geom_hline(yintercept = 0, color = "#b4b3ae", linewidth = 0.4) +
+  geom_point(aes(y = change), size = 1.2, alpha = 0.35, na.rm = TRUE) +
+  geom_line(linewidth = 1, na.rm = TRUE) +
+  geom_point(data = end_labels, size = 2.6) +
+  geom_text(data = end_labels,
+            aes(y = label_y, label = sprintf("%s  %+.1f days", city, shift)),
+            hjust = -0.12, size = 3.5, color = text_primary) +
+  scale_color_manual(values = city_colors, guide = "none") +
+  scale_x_continuous(limits = c(1982, 2028), breaks = seq(1985, 2020, 5)) +
+  labs(
+    x = NULL, y = "Days longer than the city's 1982–1991 median",
+    title = "Tucson's and Phoenix's hot seasons grew more than Flagstaff's",
+    subtitle = "Span from first to last day in each city's hottest 10%. Dots: single years. Lines: 9-year running median.\nLabels: change in median span, 1982–1991 to 2015–2024.",
+    caption = data_caption
+  ) +
+  theme_anomalies()
+
+save_chart(city_change_plot, "07-hot-season-change-by-city.png", width = 10, height = 5.5)
+```
+
+### Chart 8: How hot the hot days got
+
+A day at 101°F and a day at 112°F both count as "100°F or hotter". This chart
+splits each year's hot days by how hot they were, using the same colour ramp as
+the calendars.
+
+```{r}
+#| label: fig-heat-levels
+#| fig-width: 11
+#| fig-height: 5
+heat_mix <- hot |>
+  filter(city != "Flagstaff", !is.na(tmax_f), tmax_f >= 100) |>
+  mutate(level = heat_level(tmax_f)) |>
+  count(city, year, level) |>
+  mutate(level = fct_drop(level) |> fct_rev())
+
+heat_levels_plot <- ggplot(heat_mix, aes(year, n, fill = level)) +
+  geom_col(width = 0.8, color = "white", linewidth = 0.25) +
+  facet_wrap(~ city, nrow = 1) +
+  scale_fill_manual(values = heat_levels, name = "Daily high",
+                    guide = guide_legend(reverse = TRUE)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  labs(
+    x = NULL, y = "Days per year",
+    title = "Phoenix's 110°F days have become far more common",
+    subtitle = "Days at or above 100°F each year, split by how hot the high was. Flagstaff has none.",
+    caption = data_caption
+  ) +
+  theme_anomalies() +
+  theme(panel.grid.major.x = element_blank())
+
+save_chart(heat_levels_plot, "08-heat-levels-per-year.png", width = 11, height = 5)
+```
+
+## Summary table
+
+```{r}
+#| label: tbl-summary
+length_summary |>
+  mutate(group = if_else(group == "1982–1991", "early", "recent")) |>
+  pivot_wider(names_from = group,
+              values_from = c(median_days, median_span, usable_years)) |>
+  mutate(
+    change_days = median_days_recent - median_days_early,
+    change_span = median_span_recent - median_span_early
+  ) |>
+  select(city, measure,
+         median_days_early, median_days_recent, change_days,
+         median_span_early, median_span_recent, change_span) |>
+  arrange(measure, city) |>
+  knitr::kable(col.names = c(
+    "City", "Definition",
+    "Hot days 1982–91", "Hot days 2015–24", "Change",
+    "Season span 1982–91", "Season span 2015–24", "Change"
+  ))
+```
+
+```{r}
+#| label: tbl-trends
+bind_rows(
+  hot_events |> group_by(measure) |> group_modify(~ trend_per_decade(.x, n_days)) |>
+    mutate(what = "Hot days per year"),
+  hot_events |> group_by(measure) |> group_modify(~ trend_per_decade(.x, first_plot)) |>
+    mutate(what = "First hot day (days)"),
+  hot_events |> group_by(measure) |> group_modify(~ trend_per_decade(.x, last_plot)) |>
+    mutate(what = "Last hot day (days)")
+) |>
+  ungroup() |>
+  select(city, measure, what, slope_per_decade, n_years) |>
+  arrange(city, measure) |>
+  knitr::kable(digits = 1, col.names = c("City", "Definition", "Measure",
+                                         "Change per decade", "Years used"))
+```
+
+A negative change in the first hot day means heat arrives earlier; a positive
+change in the last hot day means it lasts later into the fall.
